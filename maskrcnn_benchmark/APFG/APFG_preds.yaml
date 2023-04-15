@@ -1,0 +1,73 @@
+OUTPUT_DIR_feats:  /checkpoints/apfg_preds
+OUTPUT_DIR: /home/wlei2019/projects/apfg/checkpoints/apfg_preds
+OUTPUT_DIR_APFG: /home/wlei2019/projects/apfg/checkpoints/apfg_preds/APFG
+CLASSIFIER_OUTPUT_DIR: /home/wlei2019/projects/apfg/checkpoints/apfg_preds/cls_ft_apfg
+
+MODEL:
+  ROI_RELATION_HEAD:
+    USE_GT_BOX: True
+    USE_GT_OBJECT_LABEL: True
+    LAST_FEATS_DIM: 1024
+    PREDICTOR: TransformerPredictor
+    PREDICT_USE_BIAS: False
+
+  APFG_latent_size: 256
+  semantic_dim: 1024
+  APFG_Feats_generation: True
+  Classifier_Finetuning: True
+  Feats_resampling: True
+  Rels_each_class: 5000
+  Num_rels_bg: 5000000
+  PRETRAINED_DETECTOR_CKPT: /home/wlei2019/projects/apfg/checkpoints/pretrained_faster_rcnn/model_final.pth
+
+TEST:
+  IMS_PER_BATCH: 2
+  ALLOW_LOAD_FROM_CACHE: False
+  Save_eval_results: False
+  COCO_mAp: False
+  Eval_all_metrics: False
+  Val_mode: Recall
+
+DTYPE: "float32"
+
+SOLVER:
+  PRE_VAL: False
+  Classifier_batch: 16
+  Classifier_max_iter: 1000000
+  Classifier_checkpoint_period: 50000
+  BASE_LR_ft: 0.000002
+  cls_ft_STEPS: (500000,)
+
+  APFG_batch: 64
+  APFG_epoch: 200
+  BASE_LR_APFG: 0.0002
+  APFG_STEPS: (100, 150)
+  weight_kl_delata: 0.5
+  weight_da_delata: 0.5
+  weight_cr_delata: 0.0
+  weight_kl: 0.0
+  weight_da: 0.0
+  weight_cr: 1.0
+
+  VAL_PERIOD: 2000
+  BASE_LR: 0.001
+  MAX_ITER: 32000
+  IMS_PER_BATCH: 16
+  STEPS: (12000, 20000, 26000)
+  WARMUP_ITERS: 2000
+  WARMUP_FACTOR: 0.01
+  GAMMA: 0.1
+  SCHEDULE:
+    TYPE: WarmupMultiStepLR
+
+DATALOADER:
+  NUM_WORKERS: 4
+GLOVE_DIR: /home/wlei2019/projects/apfg/glove
+
+INPUT:
+  BRIGHTNESS: 0.4
+  CONTRAST: 0.4
+  SATURATION: 0.4
+  HUE: 0.1
+  VERTICAL_FLIP_PROB_TRAIN: 0.5
+  HORIZONTAL_FLIP_PROB_TRAIN: 0.5
