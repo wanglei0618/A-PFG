@@ -19,7 +19,7 @@ The following command can be used to train the models:
 # 2 GPUs
 CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --master_port 10100 --nproc_per_node=2 tools/APFG_main.py --config-file "./configs/e2e_relation_X_101_32_8_FPN_1x.yaml" --my_opts "./maskrcnn_benchmark/APFG/APFG_preds.yaml"
 
-# 1 GPUs
+# 1 GPU
 CUDA_VISIBLE_DEVICES=0 python -m torch.distributed.launch --master_port 10080 --nproc_per_node=1 tools/APFG_main.py --config-file "./configs/e2e_relation_X_101_32_8_FPN_1x.yaml" --my_opts "./maskrcnn_benchmark/APFG/APFG_preds.yaml"
 ```
 Please modify the path and parameters in `./maskrcnn_benchmark/APFG/APFG_preds.yaml` to fit your own device and task.
