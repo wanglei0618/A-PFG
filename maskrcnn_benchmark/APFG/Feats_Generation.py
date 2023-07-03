@@ -60,10 +60,16 @@ def Feats_Generation(cfg, local_rank, distributed, logger):
     logger.info("Start Features Generation")
     model.eval()
 
-    last_feats = []
+    # last_feats = []
     rel_labels = []
     obj_pair_preds = []
     fg_union_features = []
+
+    fg_feats_runing = []
+    bg_feats_runing = None
+    save_index = 0
+    feats_dir = cfg.OUTPUT_DIR_feats + '/bg_feats/'
+    mkdir(feats_dir)
 
     for _, batch in enumerate(tqdm(train_data_loader)):
         with torch.no_grad():
@@ -76,7 +82,7 @@ def Feats_Generation(cfg, local_rank, distributed, logger):
             last_feats_grp = [o.cpu() for o in last_feats_grp]
             fg_union_features_grp = [o.cpu() for o in fg_union_features_grp]
             obj_pair_preds_grp = [o.cpu() for o in obj_pair_preds_grp]
-            rel_labels_grp = [o.cpu()  for o in rel_labels_grp]
+            rel_labels_grp = [o.cpu() for o in rel_labels_grp]
 
             synchronize()
 
@@ -88,39 +94,54 @@ def Feats_Generation(cfg, local_rank, distributed, logger):
             if is_main_process():
                 for p1,p2,p3,p4 in zip(last_feats_grp,fg_union_features_grp,obj_pair_preds_grp, rel_labels_grp):
                     for i in range(len(p1)):
-                        last_feats.append(p1[i].clone().numpy())
+                        # last_feats.append(p1[i].clone().numpy())
                         obj_pair_preds.append(p3[i].clone().numpy())
                         rel_labels.append(p4[i].clone().numpy())
 
+                        feats_runing = torch.from_numpy(p1[i].clone().numpy())
+                        label_runing = torch.from_numpy(p4[i].clone().numpy())
+                        fg_feats_runing.append(feats_runing[label_runing > 0, :])
+
+                        if bg_feats_runing is None:
+                            bg_feats_runing = feats_runing[label_runing == 0, :]
+                        else:
+                            bg_feats_runing = cat([bg_feats_runing, feats_runing[label_runing == 0, :]])
+
                     for i in range(len(p2)):
                         fg_union_features.append(p2[i].clone().numpy())
+
+                    while bg_feats_runing.shape[0] >= 100:
+                        torch.save(bg_feats_runing[0:100, :].clone(),
+                                   feats_dir + str(save_index) + '_' + str(save_index + 99))
+                        bg_feats_runing = bg_feats_runing[100:, :]
+                        save_index = save_index + 100
 
     torch.cuda.empty_cache()
     del last_feats_grp, rel_labels_grp, obj_pair_preds_grp, fg_union_features_grp
 
     if is_main_process():
-        feats_all = cat([torch.from_numpy(last_feats[i]) for i in range(len(last_feats))])
+        torch.save(bg_feats_runing.clone(), feats_dir + str(save_index) + '_' + str(save_index +bg_feats_runing.shape[0]-1))
+
+        # feats_all = cat([torch.from_numpy(last_feats[i]) for i in range(len(last_feats))])
         rels_labels_all = cat([torch.from_numpy(rel_labels[i]) for i in range(len(rel_labels))])
         obj_pair_all_preds = cat([torch.from_numpy(obj_pair_preds[i]) for i in range(len(obj_pair_preds))], dim=0).T
         fg_union_features = cat([torch.from_numpy(fg_union_features[i]).reshape(1,-1) for i in range(len(fg_union_features))],dim=0)
 
-        del last_feats, rel_labels, obj_pair_preds
+        del rel_labels, obj_pair_preds
 
         fg_index = np.where(rels_labels_all != 0)[0]
         bg_index = np.where(rels_labels_all == 0)[0]
-        fg_feats = feats_all[fg_index,:]
+
+        fg_feats = cat([fg_feats_runing[i] for i in range(len(fg_feats_runing))])
+
         fg_rels = rels_labels_all[fg_index]
         fg_obj_pair_preds = obj_pair_all_preds[:,fg_index]
 
-        bg_feats = feats_all[bg_index,:]
         bg_rels = rels_labels_all[bg_index]
         bg_obj_pair_preds = obj_pair_all_preds[:,bg_index]
-        del feats_all
 
         rels_labels_fg_bg = cat([fg_rels, bg_rels])
         obj_pair_preds_fg_bg = cat([fg_obj_pair_preds, bg_obj_pair_preds], dim=1)
-
-        mkdir(cfg.OUTPUT_DIR_feats)
 
         torch.save(fg_feats, cfg.OUTPUT_DIR_feats + '/fg_feats.pth')
         del fg_feats
@@ -131,16 +152,6 @@ def Feats_Generation(cfg, local_rank, distributed, logger):
             torch.save(fg_union_features[i,:].clone(), feats_dir +  str(i))
         del fg_union_features
 
-        feats_dir = cfg.OUTPUT_DIR_feats + '/bg_feats/'
-        mkdir(feats_dir)
-        save_index = 0
-        for i in range(bg_feats.shape[0]):
-            if (i+1) % 100 == 0:
-                torch.save(bg_feats[save_index:i+1,:].clone(), feats_dir + str(save_index) + '_' + str(i))
-                save_index = i + 1
-            elif (i+1) == bg_feats.shape[0]:
-                torch.save(bg_feats[save_index:i+1,:].clone(), feats_dir + str(save_index) + '_' + str(i))
-        del bg_feats
         feats_info = {}
         feats_info['rel_labels'] = rels_labels_fg_bg
         feats_info['obj_pair_preds'] = obj_pair_preds_fg_bg
