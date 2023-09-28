@@ -184,7 +184,7 @@ def loss_function(*args,
                       torch.linalg.norm((feats - De2_z_visual), dim=1))
     L_CA = torch.mean(torch.linalg.norm((semantic_embedding - De1_z_visual), dim=1) + \
                       torch.linalg.norm((feats - De2_z_semantic), dim=1))
-    L_DA = torch.mean((torch.linalg.norm((mu_semantic - log_var_semantic), dim=1)**2 +
+    L_DA = torch.mean((torch.linalg.norm((mu_semantic - mu_visual), dim=1)**2 +
             torch.linalg.norm((torch.exp(0.5 * log_var_semantic)-torch.exp(0.5 * log_var_visual)), dim=1)**2)**0.5)
     L_kl = torch.mean(-0.5 * torch.sum(1 + log_var_semantic - mu_semantic ** 2 - log_var_semantic.exp(), dim = 1), dim = 0) + \
            torch.mean(-0.5 * torch.sum(1 + log_var_visual - mu_visual ** 2 - log_var_visual.exp(), dim = 1), dim = 0)
